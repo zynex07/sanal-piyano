@@ -96,6 +96,8 @@ let recordedEvents = [];
 let activeSongKey = null;
 let activeSongStep = 0;
 
+let soundboardChain = null;
+
 // Ses Motorunu Başlat
 function initAudio() {
     if (!audioCtx) {
@@ -107,7 +109,10 @@ function initAudio() {
         const initialVol = document.getElementById('volume-slider').value / 100;
         masterGain.gain.setValueAtTime(initialVol, audioCtx.currentTime);
 
-        // Sıcak Salon Reverb Efekti (Sentetik İmpuls Yanıtı)
+        // Akustik Piyano Rezonans & Gövde Filtresi (Soundboard EQ)
+        initSoundboard();
+
+        // Konser Salonu Akustik Reverb Efekti
         createReverb();
 
         masterGain.connect(audioCtx.destination);
@@ -117,68 +122,181 @@ function initAudio() {
     }
 }
 
-// Sentetik Reverb Üreteci
+// Akustik Gövde ve Ses Tahtası Filtresi (Spruce Soundboard Resonance)
+function initSoundboard() {
+    if (soundboardChain) return;
+
+    // 1. Ladin ağacı gövde sıcaklığı (220Hz etrafında zengin rezonans)
+    const woodWarmth = audioCtx.createBiquadFilter();
+    woodWarmth.type = 'peaking';
+    woodWarmth.frequency.value = 220;
+    woodWarmth.Q.value = 1.3;
+    woodWarmth.gain.value = 3.2;
+
+    // 2. Akustik projeksiyon (1500Hz şarkı söyleyen orta frekans netliği)
+    const midPresence = audioCtx.createBiquadFilter();
+    midPresence.type = 'peaking';
+    midPresence.frequency.value = 1500;
+    midPresence.Q.value = 1.1;
+    midPresence.gain.value = 1.6;
+
+    // 3. Doğal hava sönümü (Sert dijital tizleri yuvarlayan alçak geçiren filtre)
+    const highRollOff = audioCtx.createBiquadFilter();
+    highRollOff.type = 'lowpass';
+    highRollOff.frequency.value = 12500;
+
+    woodWarmth.connect(midPresence);
+    midPresence.connect(highRollOff);
+    highRollOff.connect(masterGain);
+
+    soundboardChain = woodWarmth;
+}
+
+// Konser Salonu Akustik Reverb Üreteci
 function createReverb() {
     try {
         const sampleRate = audioCtx.sampleRate;
-        const length = sampleRate * 1.5; // 1.5 saniye reverb
+        const duration = 2.4; // 2.4 saniye akustik konser salonu kuyruğu
+        const length = sampleRate * duration;
         const impulse = audioCtx.createBuffer(2, length, sampleRate);
         const left = impulse.getChannelData(0);
         const right = impulse.getChannelData(1);
 
         for (let i = 0; i < length; i++) {
-            const decay = Math.exp(-i / (sampleRate * 0.45));
-            left[i] = (Math.random() * 2 - 1) * decay;
-            right[i] = (Math.random() * 2 - 1) * decay;
+            const t = i / sampleRate;
+            // Tiz seslerin havada daha hızlı sönümlenmesi (fiziksel oda modeli)
+            const decayL = Math.exp(-t * 2.85);
+            const decayR = Math.exp(-t * 2.95);
+
+            // İlk yansımalar ve homojen difüzyon
+            const early = (i < sampleRate * 0.06) ? (Math.random() * 0.45) : 0;
+            left[i] = ((Math.random() * 2 - 1) * decayL + early) * 0.65;
+            right[i] = ((Math.random() * 2 - 1) * decayR + early) * 0.65;
         }
 
         reverbNode = audioCtx.createConvolver();
         reverbNode.buffer = impulse;
 
         const reverbGain = audioCtx.createGain();
-        reverbGain.gain.value = 0.22; // Hafif ve ferah oda akustiği
+        reverbGain.gain.value = 0.26; // Zengin ve derin oda akustiği
 
         reverbNode.connect(reverbGain);
-        reverbGain.connect(audioCtx.destination);
+        reverbGain.connect(masterGain);
     } catch (e) {
         console.warn('Reverb oluşturulamadı:', e);
     }
 }
 
-// Gerçekçi Akustik Piyano Tınısı Sentezi
+// Çekiç Vuruş Darbesi (Felt Hammer Impact Transient)
+function playHammerImpact(now, freq, velocity, targetNode) {
+    try {
+        const bufferSize = Math.floor(audioCtx.sampleRate * 0.035); // 35ms darbe sesi
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.007));
+        }
+
+        const noiseSource = audioCtx.createBufferSource();
+        noiseSource.buffer = buffer;
+
+        const noiseFilter = audioCtx.createBiquadFilter();
+        noiseFilter.type = 'bandpass';
+        noiseFilter.frequency.setValueAtTime(Math.min(1800, Math.max(280, freq * 1.5)), now);
+        noiseFilter.Q.setValueAtTime(2.2, now);
+
+        const noiseGain = audioCtx.createGain();
+        noiseGain.gain.setValueAtTime(velocity * 0.24, now);
+        noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.032);
+
+        noiseSource.connect(noiseFilter);
+        noiseFilter.connect(noiseGain);
+        noiseGain.connect(targetNode);
+
+        noiseSource.start(now);
+        return noiseSource;
+    } catch (e) {
+        return null;
+    }
+}
+
+// Gerçekçi Akustik Kuyruklu Konser Piyanosu Sentezi
 function playSound(freq, velocity = 0.8) {
     initAudio();
     const now = audioCtx.currentTime;
 
-    // Nota Ana Kazanç Zarfı (Envelope)
+    // Frekansa bağlı doğal tel titreşim süresi (Baslar uzun şarkı söyler, tizler çabuk söner)
+    const naturalDecay = Math.max(1.2, 4.6 * Math.pow(261.63 / freq, 0.42));
+    const damperRelease = Math.max(0.14, Math.min(0.28, 0.28 * Math.pow(261.63 / freq, 0.3)));
+
+    // 1. Stereo Akustik Sahne Yayılımı (Baslar solda, tizler sağda)
+    let panner = null;
+    let nodeBeforeMaster = null;
+    if (audioCtx.createStereoPanner) {
+        panner = audioCtx.createStereoPanner();
+        const minLog = Math.log(261.63);
+        const maxLog = Math.log(2637.02);
+        const norm = (Math.log(freq) - minLog) / (maxLog - minLog);
+        const panVal = Math.max(-0.38, Math.min(0.38, -0.36 + norm * 0.72));
+        panner.pan.setValueAtTime(panVal, now);
+        panner.connect(soundboardChain || masterGain);
+        nodeBeforeMaster = panner;
+    } else {
+        nodeBeforeMaster = soundboardChain || masterGain;
+    }
+
+    // 2. Nota Kazanç Zarfı (Double-Exponential Envelope)
     const voiceGain = audioCtx.createGain();
     voiceGain.gain.setValueAtTime(0.0001, now);
-    // Hızlı çekiç vuruşu atağı (~3ms)
-    voiceGain.gain.exponentialRampToValueAtTime(velocity, now + 0.004);
-    // Doğal piyano teli sönümü (Decay)
-    voiceGain.gain.exponentialRampToValueAtTime(velocity * 0.45, now + 0.35);
+    // Hızlı çekiç vuruşu atağı (~2.5ms)
+    voiceGain.gain.exponentialRampToValueAtTime(velocity, now + 0.0025);
+    // İlk hızlı tel darbe sönümü (~140ms)
+    voiceGain.gain.exponentialRampToValueAtTime(velocity * 0.52, now + 0.14);
+    // Uzun doğal şarkı söyleyen sönüm (Singing string decay)
+    voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + naturalDecay);
 
-    // Dinamik Alçak Geçiren Filtre (Piyano çekici vuruş parlaklığı)
+    // 3. Dinamik Spektral Filtre (Piyano telinin yüksek modlarının hızlı sönümlenmesi)
     const filter = audioCtx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(3800, now);
-    filter.frequency.exponentialRampToValueAtTime(1100, now + 0.4);
+    const initCutoff = Math.min(9500, Math.max(2200, freq * 3.6 * (0.6 + 0.5 * velocity)));
+    const endCutoff = Math.min(2600, Math.max(650, freq * 1.4));
+    filter.frequency.setValueAtTime(initCutoff, now);
+    filter.frequency.exponentialRampToValueAtTime(endCutoff, now + 0.24);
 
-    // Harmonikler: Doğal piyano teli tınısı için çoklu osilatörler
+    // 4. Çekiç Vuruş Darbesi (Keçe çekiç tahta gövde transienti)
+    const impactSource = playHammerImpact(now, freq, velocity, filter);
+
+    // 5. Çelik Tel İnharmonisi (String stiffness: fn = n * f0 * sqrt(1 + B * n^2))
+    function inharmonic(n) {
+        return n * freq * Math.sqrt(1 + 0.00016 * n * n);
+    }
+
+    // Harmonikler & Unison Çoklu Tel Titreşimi
     const harmonics = [
-        { mult: 1.0, type: 'triangle', gain: 0.65 },
-        { mult: 1.0, type: 'sine',     gain: 0.40, detune: 2.5 },
-        { mult: 2.0, type: 'sine',     gain: 0.28 },
-        { mult: 3.0, type: 'sine',     gain: 0.12 },
-        { mult: 4.0, type: 'sine',     gain: 0.05 }
+        // Temel Frekans (Akustik piyanoda 3 telli unison koro titreşimi)
+        { freq: inharmonic(1), type: 'sine',     gain: 0.85, detune: 1.4 },
+        { freq: inharmonic(1), type: 'triangle', gain: 0.58, detune: -1.4 },
+        // 2. Harmonik (Oktav)
+        { freq: inharmonic(2), type: 'sine',     gain: 0.40, detune: 0.7 },
+        // 3. Harmonik (Beşli)
+        { freq: inharmonic(3), type: 'sine',     gain: 0.22, detune: -0.6 },
+        // 4. Harmonik (Çift Oktav)
+        { freq: inharmonic(4), type: 'sine',     gain: 0.11, detune: 0 },
+        // 5. Harmonik (Üçlü)
+        { freq: inharmonic(5), type: 'sine',     gain: 0.05, detune: 0 },
+        // 6. Harmonik (Metalik tel pırıltısı)
+        { freq: inharmonic(6), type: 'sine',     gain: 0.025, detune: 0 }
     ];
 
     const oscNodes = [];
 
     harmonics.forEach(h => {
+        if (h.freq > 18000) return; // İnsan kulağı üstü sınır
+
         const osc = audioCtx.createOscillator();
         osc.type = h.type;
-        osc.frequency.setValueAtTime(freq * h.mult, now);
+        osc.frequency.setValueAtTime(h.freq, now);
         if (h.detune) osc.detune.setValueAtTime(h.detune, now);
 
         const hGain = audioCtx.createGain();
@@ -191,26 +309,30 @@ function playSound(freq, velocity = 0.8) {
     });
 
     filter.connect(voiceGain);
-    voiceGain.connect(masterGain);
+    voiceGain.connect(nodeBeforeMaster);
 
     if (reverbNode) {
         voiceGain.connect(reverbNode);
     }
 
     return {
-        stop: function(releaseDuration = 0.25) {
+        naturalDecay: naturalDecay,
+        damperRelease: damperRelease,
+        stop: function(releaseDuration = damperRelease) {
             const stopTime = audioCtx.currentTime;
             voiceGain.gain.cancelScheduledValues(stopTime);
-            voiceGain.gain.setValueAtTime(voiceGain.gain.value, stopTime);
+            voiceGain.gain.setValueAtTime(Math.max(0.0001, voiceGain.gain.value), stopTime);
             voiceGain.gain.exponentialRampToValueAtTime(0.0001, stopTime + releaseDuration);
 
             setTimeout(() => {
                 oscNodes.forEach(osc => {
                     try { osc.stop(); osc.disconnect(); } catch (e) {}
                 });
+                try { if (impactSource) impactSource.stop(); } catch (e) {}
                 voiceGain.disconnect();
                 filter.disconnect();
-            }, releaseDuration * 1000 + 50);
+                if (panner) panner.disconnect();
+            }, releaseDuration * 1000 + 60);
         }
     };
 }
@@ -253,8 +375,8 @@ function noteOff(keyId) {
     const voice = activeVoices.get(keyId);
     if (!voice) return;
 
-    // Sustain pedalı basılıysa telin uzun süre titreşmesine izin ver (2.2s)
-    const releaseTime = isSustainActive ? 2.2 : 0.22;
+    // Sustain pedalı basılıysa telin doğal sönmesine izin ver; basılı değilse keçe susturucu (damper) düşer
+    const releaseTime = isSustainActive ? voice.naturalDecay : voice.damperRelease;
     voice.stop(releaseTime);
     activeVoices.delete(keyId);
 
