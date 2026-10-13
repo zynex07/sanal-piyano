@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sanal Piyano | 16 Tuşlu İnteraktif Piyano</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Başlık & Bilgi Çubuğu -->
+        <header class="header">
+            <div class="brand">
+                <div class="brand-icon">🎹</div>
+                <div class="brand-text">
+                    <h1>Sanal Piyano</h1>
+                    <p class="subtitle">24 Tuşlu İnteraktif Piyano (A-M & 1-8 Dizilimi + Siyah Tuşlar)</p>
+                </div>
+            </div>
+
+            <!-- Kontroller -->
+            <div class="controls-panel">
+                <!-- Ses Ayarı -->
+                <div class="control-group volume-control">
+                    <span class="control-icon" id="volume-icon">🔊</span>
+                    <input type="range" id="volume-slider" min="0" max="100" value="75" title="Ses Seviyesi">
+                    <span id="volume-text" class="volume-badge">75%</span>
+                </div>
+
+                <!-- Sustain Pedal -->
+                <button class="btn btn-pedal" id="sustain-btn" title="Uzatma Pedalı (Boşluk Tuşu)">
+                    <span class="pedal-indicator"></span>
+                    <span class="btn-text">Sustain Pedalı</span>
+                    <kbd class="shortcut-tag">Space</kbd>
+                </button>
+
+                <!-- Tuş Dizilimi Bilgisi -->
+                <div class="control-group layout-toggle">
+                    <span class="control-icon">⌨️</span>
+                    <span>Düzen: <strong>A-M + 1-8</strong></span>
+                </div>
+
+                <!-- Siyah Tuşları Göster/Gizle -->
+                <button class="btn btn-toggle active" id="toggle-accidentals-btn" title="Ara sesleri (diyez/bemol) aç veya kapat">
+                    <span class="btn-icon">♯♭</span>
+                    <span>Siyah Tuşlar (Açık)</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Şarkı Çalma & Pratik Bölümü -->
+        <section class="song-trainer-card">
+            <div class="trainer-header">
+                <span class="trainer-title">🎵 Şarkı Pratiği & Çalma Rehberi:</span>
+                <div class="song-buttons">
+                    <button class="song-chip" data-song="twinkle">Daha Dün Annemizin</button>
+                    <button class="song-chip" data-song="odeToJoy">Neşeye Övgü (Beethoven)</button>
+                    <button class="song-chip" data-song="jingle">Jingle Bells</button>
+                    <button class="song-chip" data-song="happyBirthday">İyi ki Doğdun</button>
+                </div>
+                <button class="btn-stop-song" id="stop-song-btn" style="display: none;">Durdur ✕</button>
+            </div>
+            <div class="trainer-helper" id="trainer-helper">
+                Bir şarkı seçerek tuş rehberini başlatabilir veya doğrudan klavyenizden serbestçe çalabilirsiniz!
+            </div>
+        </section>
+
+        <!-- Piyano Gövdesi -->
+        <main class="piano-stage">
+            <div class="piano-case">
+                <!-- Altın Plaket & Marka -->
+                <div class="piano-lid">
+                    <div class="piano-brand-badge">GRAND CONCERT PIANO</div>
+                </div>
+
+                <!-- Klavye Tuşları Alanı -->
+                <div class="piano-keyboard-wrapper">
+                    <div class="piano-keyboard" id="piano-keyboard">
+                        <!-- Tuşlar JavaScript ile dinamik ve semantik olarak üretilir -->
+                    </div>
+                </div>
+
+                <!-- Piyano Alt Çerçevesi -->
+                <div class="piano-bottom-strip"></div>
+            </div>
+        </main>
+
+        <!-- Alt Kısayol Bilgilendirme ve Kayıt Çubuğu -->
+        <footer class="footer-bar">
+            <div class="record-controls">
+                <button class="btn btn-record" id="record-btn">
+                    <span class="record-dot"></span>
+                    <span id="record-btn-text">Kayıt Başlat</span>
+                </button>
+                <button class="btn btn-play-rec" id="play-record-btn" disabled>
+                    <span>▶ Kaydı Dinle</span>
+                </button>
+            </div>
+
+            <div class="help-info">
+                <span>💡 <strong>İpucu:</strong> Klavyenizdeki tuşlara basabilir veya fare/dokunmatik ekranla tuşlara tıklayabilirsiniz.</span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
